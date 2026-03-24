@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Super Store Sales Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+/* ── RESET ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── TOKENS ── */
+:root {
+  --bg:     #080c18;
+  --card:   #141928;
+  --hdr:    #0f1420;
+  --border: rgba(255,255,255,0.06);
+  --a1: #00e5c8; --a2: #ff7043;
+  --a3: #7c6af7; --a4: #ffc107; --a5: #42a5f5;
+  --text:  #e8eaf6;
+  --muted: #6b7194;
+  --grid:  rgba(255,255,255,0.05);
+
+  /* Fluid spacing — all derived from viewport */
+  --gap:    clamp(4px, 0.6vw, 10px);
+  --pad:    clamp(5px, 0.7vw, 12px);
+  --r:      8px;                       /* border-radius */
+}
+
+/* ── ROOT ── */
+html, body {
+  width: 100vw; height: 100vh;
+  overflow: hidden;
+  background: var(--bg);
+  font-family: 'Outfit', sans-serif;
+  color: var(--text);
+}
+
+/* ── MASTER GRID ──
+   5 rows: header | kpi-bar | chart-row-1 | chart-row-2 | footer
+   Heights in vh so they always sum to 100
+*/
+.db {
+  display: grid;
+  grid-template-rows: 7vh 13vh 36vh 36vh 8vh;
+  grid-template-columns: 1fr;
+  width: 100vw;
+  height: 100vh;
+  padding: var(--gap) calc(var(--gap)*1.5);
+  gap: var(--gap);
+  background:
+    radial-gradient(ellipse 55% 35% at 85% 8%,  rgba(0,229,200,0.05) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 30% at  8% 92%, rgba(124,106,247,0.06) 0%, transparent 55%),
+    var(--bg);
+}
+
+/* ═══════════════════════════════
+   HEADER
+═══════════════════════════════ */
+.hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 var(--pad);
+  border-bottom: 1px solid var(--border);
+}
+.hdr-l { display: flex; align-items: center; gap: clamp(6px,0.8vw,14px); }
+.logo {
+  width:  clamp(24px,2.2vw,34px);
+  height: clamp(24px,2.2vw,34px);
+  border-radius: 7px;
+  background: linear-gradient(135deg,var(--a1),var(--a3));
+  display: flex; align-items: center; justify-content: center;
+  font-size: clamp(11px,1.1vw,16px); font-weight: 800; color: #080c18;
+  box-shadow: 0 0 18px rgba(0,229,200,0.25); flex-shrink: 0;
+}
+.t1 {
+  font-size: clamp(11px,1.15vw,17px); font-weight: 700; letter-spacing: .4px;
+  background: linear-gradient(90deg,#fff 0%,var(--a1) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  text-transform: uppercase; white-space: nowrap;
+}
+.t2 { font-size: clamp(7px,.65vw,10px); color: var(--muted); letter-spacing: 1.3px; text-transform: uppercase; }
+.hdr-r { display: flex; align-items: center; gap: clamp(8px,1vw,18px); }
+.badge {
+  font-size: clamp(7px,.62vw,9px); padding: 2px 8px; border-radius: 20px;
+  background: rgba(0,229,200,0.1); color: var(--a1);
+  border: 1px solid rgba(0,229,200,0.25); white-space: nowrap;
+}
+.upd { font-size: clamp(7px,.62vw,9px); color: var(--muted); white-space: nowrap; }
+
+/* ═══════════════════════════════
+   KPI BAR  (slicer + 4 cards)
+═══════════════════════════════ */
+.kpi-bar {
+  display: grid;
+  grid-template-columns: minmax(140px,14%) repeat(4,1fr);
+  gap: var(--gap);
+  align-items: stretch;
+}
+
+/* Slicer */
+.slicer {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--r);
+  padding: var(--pad); display: flex; flex-direction: column; gap: 5px; overflow: hidden;
+}
+.sl-lbl { font-size: clamp(6px,.58vw,9px); color: var(--muted); letter-spacing: 1.4px; text-transform: uppercase; flex-shrink: 0; }
+.chips  { display: flex; gap: 4px; flex-wrap: wrap; overflow: hidden; }
+.chip {
+  font-size: clamp(7px,.65vw,10px); padding: 2px 7px; border-radius: 20px; cursor: pointer;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07);
+  color: var(--muted); transition: all .2s; white-space: nowrap;
+}
+.chip.active { background: rgba(0,229,200,0.14); border-color: rgba(0,229,200,0.4); color: var(--a1); font-weight: 600; }
+.chip:hover  { background: rgba(0,229,200,0.07); color: var(--a1); }
+
+/* KPI card */
+.kpi {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--r);
+  padding: var(--pad) calc(var(--pad)*1.3);
+  display: flex; flex-direction: column; justify-content: space-between;
+  position: relative; overflow: hidden; transition: transform .2s;
+  min-width: 0;
+}
+.kpi:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+.kpi::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; }
+.kpi:nth-child(2)::before { background: linear-gradient(90deg,var(--a1),transparent); }
+.kpi:nth-child(3)::before { background: linear-gradient(90deg,var(--a2),transparent); }
+.kpi:nth-child(4)::before { background: linear-gradient(90deg,var(--a3),transparent); }
+.kpi:nth-child(5)::before { background: linear-gradient(90deg,var(--a4),transparent); }
+.kpi-l  { font-size: clamp(6px,.58vw,9px); color: var(--muted); letter-spacing: 1.3px; text-transform: uppercase; }
+.kpi-v  { font-size: clamp(16px,1.8vw,26px); font-weight: 700; line-height: 1.1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kpi:nth-child(2) .kpi-v { color: var(--a1); }
+.kpi:nth-child(3) .kpi-v { color: var(--a2); }
+.kpi:nth-child(4) .kpi-v { color: var(--a3); }
+.kpi:nth-child(5) .kpi-v { color: var(--a4); }
+.kpi-f  { display: flex; align-items: center; gap: 5px; }
+.delta  { font-size: clamp(7px,.62vw,9px); font-weight: 600; padding: 1px 5px; border-radius: 3px; background: rgba(0,229,200,0.1); color: var(--a1); white-space: nowrap; }
+.per    { font-size: clamp(6px,.58vw,8px); color: var(--muted); white-space: nowrap; }
+.kpi-ico { position:absolute; right: clamp(6px,.8vw,14px); top:50%; transform:translateY(-50%); font-size: clamp(16px,1.8vw,26px); opacity:.07; }
+
+/* ═══════════════════════════════
+   CHART ROWS
+═══════════════════════════════ */
+.row {
+  display: grid; gap: var(--gap); min-height: 0;
+}
+.row1 { grid-template-columns: 1.1fr 2fr 1fr; }
+.row2 { grid-template-columns: 1.5fr 1fr 1fr; }
+
+/* Chart card */
+.card {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--r);
+  padding: var(--pad) calc(var(--pad)*1.2) calc(var(--pad)*.8);
+  display: flex; flex-direction: column;
+  min-height: 0; overflow: hidden;
+  transition: border-color .2s;
+}
+.card:hover { border-color: rgba(0,229,200,0.18); }
+.c-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: calc(var(--gap)*.8); flex-shrink: 0;
+}
+.c-title {
+  font-size: clamp(7px,.65vw,10px); font-weight: 600;
+  color: #c0c4e0; letter-spacing: .4px; text-transform: uppercase;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.c-badge {
+  font-size: clamp(6px,.55vw,8px); padding: 1px 6px; border-radius: 3px;
+  background: rgba(255,255,255,0.05); color: var(--muted); white-space: nowrap; flex-shrink: 0;
+}
+.wrap { flex: 1; min-height: 0; position: relative; width: 100%; }
+.wrap canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; }
+
+/* State list */
+.sl { flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 3px; justify-content: space-around; }
+.sr { display: grid; grid-template-columns: clamp(55px,5.5vw,80px) 1fr clamp(36px,3.5vw,52px); align-items: center; gap: 5px; }
+.sn { font-size: clamp(7px,.62vw,9px); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sb { background: rgba(255,255,255,0.05); border-radius: 2px; height: 5px; overflow: hidden; }
+.sf { height: 100%; border-radius: 2px; transition: width 1.2s cubic-bezier(.4,0,.2,1); }
+.sv { font-size: clamp(7px,.62vw,9px); font-weight: 600; color: var(--text); text-align: right; }
+
+/* ═══════════════════════════════
+   FOOTER
+═══════════════════════════════ */
+.footer {
+  background: var(--hdr); border-radius: var(--r);
+  border-top: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: clamp(6px,.58vw,9px); color: var(--muted);
+  letter-spacing: .4px; padding: 0 var(--pad);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ── ANIMATIONS ── */
+@keyframes fadeUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+.kpi  { animation: fadeUp .45s ease both; }
+.kpi:nth-child(2){animation-delay:.05s} .kpi:nth-child(3){animation-delay:.1s}
+.kpi:nth-child(4){animation-delay:.15s} .kpi:nth-child(5){animation-delay:.2s}
+.card { animation: fadeUp .55s ease both; }
+.row1 .card:nth-child(1){animation-delay:.2s}  .row1 .card:nth-child(2){animation-delay:.25s}
+.row1 .card:nth-child(3){animation-delay:.3s}  .row2 .card:nth-child(1){animation-delay:.35s}
+.row2 .card:nth-child(2){animation-delay:.4s}  .row2 .card:nth-child(3){animation-delay:.45s}
+</style>
+</head>
+<body>
+<div class="db">
+
+  <!-- HEADER -->
+  <header class="hdr">
+    <div class="hdr-l">
+      <div class="logo">S</div>
+      <div>
+        <div class="t1">Super Store Sales Dashboard</div>
+        <div class="t2">Retail Analytics · 2019 – 2022</div>
+      </div>
+    </div>
+    <div class="hdr-r">
+      <span class="badge">● LIVE</span>
+      <span class="upd">Last Updated: Mar 2026</span>
+    </div>
+  </header>
+
+  <!-- KPI BAR -->
+  <div class="kpi-bar">
+    <div class="slicer">
+      <div class="sl-lbl">Filter by Region</div>
+      <div class="chips">
+        <span class="chip active" onclick="filterRegion(this,'All')">All</span>
+        <span class="chip" onclick="filterRegion(this,'West')">West</span>
+        <span class="chip" onclick="filterRegion(this,'East')">East</span>
+        <span class="chip" onclick="filterRegion(this,'Central')">Central</span>
+        <span class="chip" onclick="filterRegion(this,'South')">South</span>
+      </div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-l">Total Sales</div>
+      <div class="kpi-v" id="k1">$2.30M</div>
+      <div class="kpi-f"><span class="delta">▲ 20.4%</span><span class="per">vs prior year</span></div>
+      <div class="kpi-ico">💰</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-l">Total Profit</div>
+      <div class="kpi-v" id="k2">$286K</div>
+      <div class="kpi-f"><span class="delta">▲ 14.2%</span><span class="per">vs prior year</span></div>
+      <div class="kpi-ico">📈</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-l">Total Orders</div>
+      <div class="kpi-v" id="k3">9,994</div>
+      <div class="kpi-f"><span class="delta">▲ 8.7%</span><span class="per">vs prior year</span></div>
+      <div class="kpi-ico">📦</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-l">Profit Margin</div>
+      <div class="kpi-v" id="k4">12.47%</div>
+      <div class="kpi-f"><span class="delta">▲ 2.1pp</span><span class="per">vs prior year</span></div>
+      <div class="kpi-ico">🎯</div>
+    </div>
+  </div>
+
+  <!-- CHART ROW 1 -->
+  <div class="row row1">
+    <div class="card">
+      <div class="c-hdr"><span class="c-title">Sales by Category</span><span class="c-badge">3 Categories</span></div>
+      <div class="wrap"><canvas id="catChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="c-hdr"><span class="c-title">Sales &amp; Profit Over Time</span><span class="c-badge">Quarterly Trend</span></div>
+      <div class="wrap"><canvas id="areaChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="c-hdr"><span class="c-title">Sales by Ship Mode</span><span class="c-badge">4 Modes</span></div>
+      <div class="wrap"><canvas id="shipChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- CHART ROW 2 -->
+  <div class="row row2">
+    <div class="card">
+      <div class="c-hdr"><span class="c-title">Sales by Sub-Category</span><span class="c-badge">Top 10</span></div>
+      <div class="wrap"><canvas id="subCatChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="c-hdr"><span class="c-title">Sales by State</span><span class="c-badge">Top 8</span></div>
+      <div class="sl" id="stateList"></div>
+    </div>
+    <div class="card">
+      <div class="c-hdr"><span class="c-title">Sales by Segment</span><span class="c-badge">3 Segments</span></div>
+      <div class="wrap"><canvas id="donutChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    Super Store USA · Retail Analytics 2019–2022 · Regions: West · East · Central · South · 9,994 Orders · $2.30M Revenue
+  </footer>
+
+</div>
+<script>
+/* ── CHART DEFAULTS ── */
+Chart.defaults.color = '#6b7194';
+Chart.defaults.font.family = "'Outfit', sans-serif";
+Chart.defaults.font.size = 10;
+
+const A1='#00e5c8', A2='#ff7043', A3='#7c6af7', A4='#ffc107', A5='#42a5f5';
+const GRID='rgba(255,255,255,0.05)', TK='#6b7194';
+
+/* ── DATA ── */
+const D = {
+  All:{
+    cat:{lb:['Technology','Furniture','Office Supplies'],v:[836154,741999,719047]},
+    seg:{Consumer:1161401,Corporate:706146,HomeOffice:429653},
+    ship:{lb:['Standard','Second Class','First Class','Same Day'],v:[1358216,459194,351428,128362]},
+    sub:{lb:['Phones','Chairs','Storage','Tables','Binders','Machines','Accessories','Copiers','Bookcases','Appliances'],
+         v:[330007,328449,223844,206966,203413,189239,167380,149528,114880,107532]},
+    states:[{n:'California',v:457688},{n:'New York',v:310876},{n:'Texas',v:170188},{n:'Washington',v:138641},
+            {n:'Pennsylvania',v:116512},{n:'Florida',v:89474},{n:'Illinois',v:80166},{n:'Ohio',v:78259}],
+    qtr:{lb:["Q1'19","Q2'19","Q3'19","Q4'19","Q1'20","Q2'20","Q3'20","Q4'20","Q1'21","Q2'21","Q3'21","Q4'21","Q1'22","Q2'22","Q3'22","Q4'22"],
+         s:[148000,175000,198000,268000,158000,189000,218000,290000,168000,203000,240000,312000,182000,226000,268000,339000],
+         p:[17500,21200,23900,32000,18800,23100,26500,35200,20200,24800,29300,38100,22400,27600,33000,42200]},
+    kpi:{s:'$2.30M',p:'$286K',o:'9,994',m:'12.47%'}
+  },
+  West:{
+    cat:{lb:['Technology','Furniture','Office Supplies'],v:[324000,267000,252000]},
+    seg:{Consumer:434000,Corporate:256000,HomeOffice:153000},
+    ship:{lb:['Standard','Second Class','First Class','Same Day'],v:[498000,168000,129000,48000]},
+    sub:{lb:['Phones','Chairs','Storage','Tables','Binders','Machines','Accessories','Copiers','Bookcases','Appliances'],
+         v:[128000,121000,86000,79000,73000,72000,62000,56000,44000,39000]},
+    states:[{n:'California',v:457688},{n:'Washington',v:138641},{n:'Oregon',v:66900},{n:'Nevada',v:23400},
+            {n:'Arizona',v:19800},{n:'Colorado',v:17100},{n:'Utah',v:12800},{n:'Montana',v:6700}],
+    qtr:{lb:["Q1'19","Q2'19","Q3'19","Q4'19","Q1'20","Q2'20","Q3'20","Q4'20","Q1'21","Q2'21","Q3'21","Q4'21","Q1'22","Q2'22","Q3'22","Q4'22"],
+         s:[55000,66000,75000,101000,59000,71000,82000,109000,64000,77000,91000,118000,69000,86000,101000,128000],
+         p:[6500,7900,9100,12200,7200,8700,10100,13500,7800,9400,11200,14700,8500,10500,12600,16400]},
+    kpi:{s:'$843K',p:'$108K',o:'3,203',m:'12.81%'}
+  },
+  East:{
+    cat:{lb:['Technology','Furniture','Office Supplies'],v:[291000,264000,268000]},
+    seg:{Consumer:417000,Corporate:256000,HomeOffice:150000},
+    ship:{lb:['Standard','Second Class','First Class','Same Day'],v:[491000,164000,125000,43000]},
+    sub:{lb:['Phones','Chairs','Storage','Tables','Binders','Machines','Accessories','Copiers','Bookcases','Appliances'],
+         v:[115000,118000,80000,74000,76000,67000,60000,52000,41000,38000]},
+    states:[{n:'New York',v:310876},{n:'Pennsylvania',v:116512},{n:'Ohio',v:78259},{n:'Virginia',v:71000},
+            {n:'Georgia',v:57000},{n:'Massachusetts',v:54000},{n:'N. Carolina',v:48000},{n:'Michigan',v:42000}],
+    qtr:{lb:["Q1'19","Q2'19","Q3'19","Q4'19","Q1'20","Q2'20","Q3'20","Q4'20","Q1'21","Q2'21","Q3'21","Q4'21","Q1'22","Q2'22","Q3'22","Q4'22"],
+         s:[52000,62000,70000,95000,55000,66000,77000,103000,59000,71000,85000,111000,64000,79000,94000,120000],
+         p:[6100,7400,8500,11600,6700,8100,9500,12700,7300,8800,10500,13800,8000,9800,11700,15200]},
+    kpi:{s:'$823K',p:'$102K',o:'2,848',m:'12.40%'}
+  },
+  Central:{
+    cat:{lb:['Technology','Furniture','Office Supplies'],v:[131000,132000,116000]},
+    seg:{Consumer:183000,Corporate:114000,HomeOffice:82000},
+    ship:{lb:['Standard','Second Class','First Class','Same Day'],v:[215000,72000,55000,19000]},
+    sub:{lb:['Phones','Chairs','Storage','Tables','Binders','Machines','Accessories','Copiers','Bookcases','Appliances'],
+         v:[52000,47000,35000,30000,30000,29000,25000,22000,18000,16000]},
+    states:[{n:'Texas',v:170188},{n:'Illinois',v:80166},{n:'Minnesota',v:29000},{n:'Wisconsin',v:23000},
+            {n:'Missouri',v:21000},{n:'Indiana',v:18000},{n:'Iowa',v:12000},{n:'Kansas',v:9800}],
+    qtr:{lb:["Q1'19","Q2'19","Q3'19","Q4'19","Q1'20","Q2'20","Q3'20","Q4'20","Q1'21","Q2'21","Q3'21","Q4'21","Q1'22","Q2'22","Q3'22","Q4'22"],
+         s:[23000,28000,31000,42000,25000,30000,34000,46000,27000,33000,38000,50000,29000,36000,43000,54000],
+         p:[2700,3400,3800,5200,3100,3700,4200,5800,3400,4100,4700,6300,3700,4500,5400,6900]},
+    kpi:{s:'$379K',p:'$47K',o:'2,323',m:'12.40%'}
+  },
+  South:{
+    cat:{lb:['Technology','Furniture','Office Supplies'],v:[90000,79000,83000]},
+    seg:{Consumer:127000,Corporate:80000,HomeOffice:45000},
+    ship:{lb:['Standard','Second Class','First Class','Same Day'],v:[154000,55000,42000,18000]},
+    sub:{lb:['Phones','Chairs','Storage','Tables','Binders','Machines','Accessories','Copiers','Bookcases','Appliances'],
+         v:[35000,42000,23000,24000,24000,21000,20000,20000,12000,14000]},
+    states:[{n:'Florida',v:89474},{n:'Tennessee',v:31000},{n:'N. Carolina',v:28000},{n:'Alabama',v:17000},
+            {n:'Louisiana',v:14000},{n:'Mississippi',v:9000},{n:'Arkansas',v:7500},{n:'Oklahoma',v:7000}],
+    qtr:{lb:["Q1'19","Q2'19","Q3'19","Q4'19","Q1'20","Q2'20","Q3'20","Q4'20","Q1'21","Q2'21","Q3'21","Q4'21","Q1'22","Q2'22","Q3'22","Q4'22"],
+         s:[18000,19000,22000,30000,19000,22000,25000,32000,18000,22000,26000,33000,20000,25000,30000,37000],
+         p:[2200,2500,2700,3800,2400,2800,3200,4200,2300,2800,3300,4500,2500,3200,3900,5100]},
+    kpi:{s:'$252K',p:'$29K',o:'1,620',m:'11.51%'}
+  }
+};
+
+/* ── CHART INSTANCES ── */
+let CH = {}, cur = 'All';
+
+/* ── CHART OPTIONS FACTORY ── */
+const baseOpts = (extra={}) => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  animation: { duration: 750, easing: 'easeOutQuart' },
+  plugins: { legend: { display: false } },
+  ...extra
+});
+
+const scaleXY = (xCb, yCb) => ({
+  scales: {
+    x: { grid:{color:GRID}, ticks:{color:TK, maxRotation:0, font:{size:9}, callback:xCb||undefined}, border:{display:false} },
+    y: { grid:{color:GRID}, ticks:{color:TK, font:{size:9}, callback:yCb||undefined}, border:{display:false} }
+  }
+});
+
+const fmtK = v => '$' + (v>=1000000 ? (v/1000000).toFixed(1)+'M' : Math.round(v/1000)+'K');
+
+function initCharts() {
+  const d = D[cur];
+
+  /* 1 — Category (horizontal bar) */
+  CH.cat = new Chart(document.getElementById('catChart'), {
+    type:'bar',
+    data:{ labels:d.cat.lb,
+           datasets:[{data:d.cat.v, backgroundColor:[A1,A2,A3], borderRadius:4, borderSkipped:false}] },
+    options: { ...baseOpts(),
+      indexAxis:'y',
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>' '+fmtK(c.raw)}} },
+      scales:{
+        x:{grid:{color:GRID}, ticks:{color:TK,font:{size:9},callback:fmtK}, border:{display:false}},
+        y:{grid:{display:false}, ticks:{color:'#c8cce8',font:{size:9,weight:'500'}}, border:{display:false}}
+      }
+    }
+  });
+
+  /* 2 — Sales & Profit Line */
+  CH.area = new Chart(document.getElementById('areaChart'), {
+    type:'line',
+    data:{ labels:d.qtr.lb, datasets:[
+      {label:'Sales', data:d.qtr.s, borderColor:A1, backgroundColor:'rgba(0,229,200,0.07)',
+       borderWidth:2, pointRadius:2, pointHoverRadius:5, fill:true, tension:.4},
+      {label:'Profit', data:d.qtr.p, borderColor:A4, backgroundColor:'rgba(255,193,7,0.05)',
+       borderWidth:2, pointRadius:2, pointHoverRadius:5, fill:true, tension:.4}
+    ]},
+    options: { ...baseOpts(),
+      plugins:{ legend:{display:true, position:'top', align:'end',
+                  labels:{boxWidth:9,padding:10,color:'#8a8fb0',font:{size:9}}},
+                tooltip:{callbacks:{label:c=>' '+fmtK(c.raw)}} },
+      ...scaleXY(undefined, fmtK)
+    }
+  });
+
+  /* 3 — Ship Mode (vertical bar) */
+  CH.ship = new Chart(document.getElementById('shipChart'), {
+    type:'bar',
+    data:{ labels:d.ship.lb,
+           datasets:[{data:d.ship.v, backgroundColor:[A1,A3,A5,A4], borderRadius:4, borderSkipped:false}] },
+    options: { ...baseOpts(),
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>' '+fmtK(c.raw)}} },
+      ...scaleXY(undefined, fmtK)
+    }
+  });
+
+  /* 4 — Sub-Category (horizontal bar, top 10) */
+  CH.sub = new Chart(document.getElementById('subCatChart'), {
+    type:'bar',
+    data:{ labels:d.sub.lb,
+           datasets:[{data:d.sub.v,
+             backgroundColor:d.sub.v.map((_,i)=>`hsla(${172+i*19},75%,52%,0.82)`),
+             borderRadius:3, borderSkipped:false}] },
+    options: { ...baseOpts(),
+      indexAxis:'y',
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>' '+fmtK(c.raw)}} },
+      scales:{
+        x:{grid:{color:GRID}, ticks:{color:TK,font:{size:9},callback:fmtK,maxTicksLimit:5}, border:{display:false}},
+        y:{grid:{display:false}, ticks:{color:'#b0b4d0',font:{size:9}}, border:{display:false}}
+      }
+    }
+  });
+
+  /* 5 — State progress bars */
+  renderStates(d.states);
+
+  /* 6 — Segment Donut */
+  const sg = d.seg;
+  CH.donut = new Chart(document.getElementById('donutChart'), {
+    type:'doughnut',
+    data:{ labels:['Consumer','Corporate','Home Office'],
+           datasets:[{data:[sg.Consumer,sg.Corporate,sg.HomeOffice],
+             backgroundColor:[A1,A3,A4], borderColor:'#141928', borderWidth:3, hoverOffset:6}] },
+    options: { ...baseOpts({cutout:'65%'}),
+      plugins:{ legend:{display:true, position:'bottom',
+                  labels:{color:'#8a8fb0',font:{size:9},padding:8,boxWidth:9}},
+                tooltip:{callbacks:{label:c=>{
+                  const t=sg.Consumer+sg.Corporate+sg.HomeOffice;
+                  return ' '+fmtK(c.raw)+' ('+Math.round(c.raw/t*100)+'%)';
+                }}} }
+    }
+  });
+
+  updateKPIs(d.kpi);
+}
+
+/* ── STATE BARS ── */
+function renderStates(states) {
+  const mx = Math.max(...states.map(s=>s.v));
+  const clrs = [A1,A2,A3,A4,A5,'#ec407a','#26c6da','#ab47bc'];
+  document.getElementById('stateList').innerHTML = states.map((s,i)=>`
+    <div class="sr">
+      <div class="sn">${s.n}</div>
+      <div class="sb"><div class="sf" style="width:${Math.round(s.v/mx*100)}%;background:${clrs[i]}"></div></div>
+      <div class="sv">${fmtK(s.v)}</div>
+    </div>`).join('');
+}
+
+/* ── KPI UPDATE ── */
+function updateKPIs(k) {
+  document.getElementById('k1').textContent = k.s;
+  document.getElementById('k2').textContent = k.p;
+  document.getElementById('k3').textContent = k.o;
+  document.getElementById('k4').textContent = k.m;
+}
+
+/* ── FILTER ── */
+function filterRegion(el, r) {
+  document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  cur = r; const d = D[r];
+  CH.cat.data.datasets[0].data = d.cat.v; CH.cat.update();
+  CH.area.data.labels = d.qtr.lb;
+  CH.area.data.datasets[0].data = d.qtr.s;
+  CH.area.data.datasets[1].data = d.qtr.p;
+  CH.area.update();
+  CH.ship.data.datasets[0].data = d.ship.v; CH.ship.update();
+  CH.sub.data.datasets[0].data  = d.sub.v;  CH.sub.update();
+  renderStates(d.states);
+  const sg = d.seg;
+  CH.donut.data.datasets[0].data = [sg.Consumer,sg.Corporate,sg.HomeOffice];
+  CH.donut.update();
+  updateKPIs(d.kpi);
+}
+
+/* ── RESIZE: redraw charts when window changes ── */
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    Object.values(CH).forEach(c => { if(c && c.resize) c.resize(); });
+  }, 120);
+});
+
+window.addEventListener('DOMContentLoaded', initCharts);
+</script>
+</body>
+</html>
